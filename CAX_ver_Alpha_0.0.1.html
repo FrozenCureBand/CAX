@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAX — Gestión de Pólizas</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#0a1628;--bg2:#0f2038;--card:#132a45;--card2:#0d1f36;--border:#1e3a5c;--text:#eaf2ff;--muted:#8ca3c4;
+--bs:#3b82f6;--bp:#60a5fa;--bd:#0a1628;--ok:#22c55e;--wa:#f59e0b;--er:#ef4444;--gr:#8ca3c4;--r:12px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:linear-gradient(160deg,var(--bg),#08111f);color:var(--text);min-height:100vh;font-size:13px}
+.hidden{display:none!important}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+#authScreen{position:fixed;inset:0;background:linear-gradient(160deg,var(--bg),#08111f);display:flex;align-items:center;justify-content:center;padding:16px;z-index:9500}
+.auth-card{background:var(--card);border:1px solid var(--border);border-radius:16px;width:100%;max-width:400px;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.auth-logo{font-size:44px;text-align:center;margin-bottom:8px}
+.auth-title{font-size:20px;font-weight:800;text-align:center;background:linear-gradient(90deg,var(--bs),var(--bp));-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:4px}
+.auth-sub{font-size:12px;color:var(--muted);text-align:center;margin-bottom:22px}
+.auth-tabs{display:flex;gap:4px;background:var(--card2);border-radius:8px;padding:4px;margin-bottom:18px}
+.auth-tab{flex:1;text-align:center;padding:8px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)}
+.auth-tab.active{background:var(--bs);color:#fff}
+.auth-err{background:#3a1215;color:#f87171;padding:8px 12px;border-radius:7px;font-size:12px;margin-bottom:12px}
+.auth-ok{background:#0f2e1a;color:#4ade80;padding:8px 12px;border-radius:7px;font-size:12px;margin-bottom:12px}
+#wizard{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px}
+.wc{background:var(--card);border:1px solid var(--border);border-radius:16px;width:100%;max-width:480px;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:90vh;overflow-y:auto}
+.wiz-logo{font-size:44px;text-align:center;margin-bottom:8px}
+.wiz-title{font-size:20px;font-weight:800;text-align:center;color:var(--bp);margin-bottom:6px}
+.wiz-sub{font-size:12px;color:var(--muted);text-align:center;margin-bottom:22px}
+.ws{display:none}.ws.active{display:block}
+.wiz-prog{display:flex;gap:6px;justify-content:center;margin-bottom:20px}
+.wd{width:8px;height:8px;border-radius:50%;background:var(--border)}
+.wd.active{background:var(--bs)}.wd.done{background:var(--ok)}
+.wiz-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+.swatches{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.swatch{width:34px;height:34px;border-radius:8px;cursor:pointer;border:3px solid transparent}
+.swatch.sel{border-color:#fff;transform:scale(1.1)}
+#app{display:flex;min-height:100vh}
+#sidebar{width:225px;background:var(--card2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100}
+.sb-head{padding:18px 14px;border-bottom:1px solid var(--border);text-align:center;cursor:pointer}
+.sb-logo{font-size:30px}.sb-name{font-size:13px;font-weight:700;color:var(--bp);margin-top:4px;word-break:break-word}
+.sb-type{font-size:10px;color:var(--muted);margin-top:2px}
+.sb-nav{flex:1;padding:8px 0;overflow-y:auto}
+.ni{display:flex;align-items:center;gap:8px;padding:10px 16px;cursor:pointer;font-size:13px;border-left:3px solid transparent;color:var(--text)}
+.ni:hover{background:var(--bg2);color:var(--bp)}
+.ni.active{background:rgba(59,130,246,.12);color:var(--bp);border-left-color:var(--bs);font-weight:700}
+.ni-icon{font-size:15px;width:20px;text-align:center}
+.sb-foot{padding:10px 14px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);text-align:center;cursor:pointer}
+#main{margin-left:225px;flex:1;display:flex;flex-direction:column}
+.topbar{background:var(--card2);border-bottom:1px solid var(--border);padding:12px 22px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.topbar-title{font-size:16px;font-weight:800}
+.content{padding:22px;flex:1}
+.page{display:none}.page.active{display:block}
+.card{background:var(--card);border-radius:var(--r);border:1px solid var(--border);padding:16px;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+.ct{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.ga{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.btn{padding:8px 14px;border-radius:7px;border:none;cursor:pointer;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px}
+.btn-p{background:var(--bs);color:#fff}.btn-p:hover{background:#2563eb}
+.btn-s{background:#374151;color:#fff}.btn-ok{background:var(--ok);color:#062}
+.btn-d{background:var(--er);color:#fff}.btn-w{background:var(--wa);color:#222}
+.btn-o{background:transparent;border:1.5px solid var(--bs);color:var(--bp)}
+.btn-o:hover{background:var(--bs);color:#fff}
+.btn-g{background:transparent;border:1px solid var(--border);color:var(--muted)}
+.btn-g:hover{border-color:var(--bs);color:var(--bp)}
+.btn-xs{padding:4px 8px;font-size:11px}
+.btn-sm{padding:6px 10px;font-size:12px}
+.wf{width:100%}
+.fg{margin-bottom:10px}
+.fg label{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.fc{width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;background:var(--card2);color:var(--text)}
+.fc:focus{outline:none;border-color:var(--bs)}
+.tw{overflow-x:auto;border-radius:var(--r);border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:11.5px;white-space:nowrap}
+thead{background:var(--bg2);color:var(--bp)}
+th{padding:9px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;border-bottom:1px solid var(--border)}
+td{padding:8px 10px;border-bottom:1px solid var(--border)}
+tr:hover td{background:rgba(59,130,246,.04)}
+.badge{padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;display:inline-block}
+.b-v{background:#0f2e1a;color:#4ade80}.b-e{background:#3a1215;color:#f87171}
+.b-p{background:#3a2c0d;color:#facc15}.b-c{background:#2a2a2e;color:#9ca3af}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;display:none;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.open{display:flex}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:var(--r);width:100%;max-width:680px;max-height:92vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,.5)}
+.mh{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.mt{font-size:15px;font-weight:800}
+.mb{padding:18px 20px}
+.mf{padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+.mc{background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted)}
+#toasts{position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:7px}
+.toast{padding:10px 16px;border-radius:8px;font-size:12px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:300px}
+.t-ok{background:#0f2e1a;color:#4ade80;border-left:4px solid var(--ok)}
+.t-err{background:#3a1215;color:#f87171;border-left:4px solid var(--er)}
+.t-warn{background:#3a2c0d;color:#facc15;border-left:4px solid var(--wa)}
+.t-info{background:#0d2438;color:#7dd3fc;border-left:4px solid #0ea5e9}
+.stat{background:var(--card);border-radius:var(--r);padding:14px;border:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.si{font-size:22px;width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:10px}
+.sl{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase}
+.sv{font-size:19px;font-weight:800}.ss{font-size:10px;color:var(--muted)}
+.sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.sh-t{font-size:18px;font-weight:800}.sh-s{font-size:11px;color:var(--muted);margin-top:2px}
+.empty{text-align:center;padding:36px 16px;color:var(--muted)}
+.ei{font-size:36px;margin-bottom:8px}.em{font-size:13px;font-weight:700}.es{font-size:11px;margin-top:4px}
+.month-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.month-cell{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:8px}
+.month-cell-title{font-weight:800;font-size:11px;color:var(--bp);margin-bottom:4px}
+.month-cell-row{display:flex;justify-content:space-between;font-size:10.5px;margin-bottom:2px}
+.month-cell-key{color:var(--muted)}
+.month-detail td{background:var(--card2)}
+.month-edit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;max-height:320px;overflow-y:auto;padding:4px}
+.month-edit-card{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:8px}
+.month-edit-card .mt-title{font-weight:800;font-size:11px;color:var(--bp);margin-bottom:6px}
+.month-edit-card input{width:100%;margin-bottom:4px;padding:5px 6px;font-size:11px;border:1px solid var(--border);border-radius:5px;background:var(--bg2);color:var(--text)}
+.month-edit-card label{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);margin-top:2px}
+.crm-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;transition:border-color .15s}
+.crm-card.urg{border-color:var(--er)}
+.crm-card.sn{border-color:var(--wa)}
+.crm-hd{margin-bottom:8px}
+.crm-name{font-weight:800;font-size:13px}
+.crm-pol{font-size:10.5px;color:var(--muted);margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.crm-bd{margin-bottom:8px}
+.crm-row{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0;border-bottom:1px dashed var(--border)}
+.crm-row:last-child{border-bottom:none}
+.crm-key{color:var(--muted)}
+.crm-ft{display:flex;gap:6px}
+.tabs{display:flex;gap:3px;border-bottom:2px solid var(--border);margin-bottom:16px}
+.tab{padding:8px 16px;cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);border-bottom:2px solid transparent}
+.tab.active{color:var(--bp);border-bottom-color:var(--bs)}
+.cfg-b{background:var(--card);border-radius:var(--r);border:1px solid var(--border);margin-bottom:16px}
+.cfg-bh{padding:12px 18px;border-bottom:1px solid var(--border);font-size:12px;font-weight:700;display:flex;gap:8px}
+.cfg-bb{padding:16px}
+.alert{padding:10px 14px;border-radius:7px;font-size:12px;margin-bottom:12px;display:flex;gap:7px}
+.a-ok{background:#0f2e1a;color:#4ade80;border-left:4px solid var(--ok)}
+.a-info{background:#0d2438;color:#7dd3fc;border-left:4px solid #0ea5e9}
+.a-warn{background:#3a2c0d;color:#facc15;border-left:4px solid var(--wa)}
+.flex{display:flex}.ic{align-items:center}.jb{justify-content:space-between}
+.g2x{gap:8px}.mb2{margin-bottom:8px}.mb3{margin-bottom:12px}.mb4{margin-bottom:16px}
+.mt2{margin-top:8px}.mt3{margin-top:12px}.tsm{font-size:11px}.tm{color:var(--muted)}
+.fw{font-weight:700}.wrap{flex-wrap:wrap}
+.dropzone{border:2px dashed var(--border);border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:border-color .15s}
+.dropzone:hover{border-color:var(--bs)}
+.dropzone .dzi{font-size:44px;margin-bottom:10px}
+@media(max-width:800px){#sidebar{display:none}#main{margin-left:0}.g4{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<script>
+  const SUPABASE_URL = "https://kigjgztjdfjkdeafqxin.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtpZ2pnenRqZGZqa2RlYWZxeGluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNDA1NjIsImV4cCI6MjEwNTYxNjU2Mn0.upwWEgn2ZejHJfum4a--fRaf_bVfKJlNB5FEwTPr0CI";
+</script>
+
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="auth-logo">🚗</div>
+    <div class="auth-title">CAX</div>
+    <div class="auth-sub">Gestión de Pólizas de Auto</div>
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Iniciar sesión</div>
+      <div class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Crear cuenta</div>
+    </div>
+    <div id="authMsg"></div>
+    <div id="loginForm">
+      <div class="fg"><label>Correo</label><input type="email" id="loginEmail" class="fc" placeholder="tu@correo.com"></div>
+      <div class="fg"><label>Contraseña</label><input type="password" id="loginPass" class="fc" placeholder="••••••••"></div>
+      <button class="btn btn-p wf" onclick="doLogin()">Iniciar sesión</button>
+    </div>
+    <div id="signupForm" class="hidden">
+      <div class="fg"><label>Correo</label><input type="email" id="signupEmail" class="fc" placeholder="tu@correo.com"></div>
+      <div class="fg"><label>Contraseña (mín. 6 caracteres)</label><input type="password" id="signupPass" class="fc" placeholder="••••••••"></div>
+      <button class="btn btn-p wf" onclick="doSignup()">Crear cuenta</button>
+    </div>
+  </div>
+</div>
+
+<div id="wizard" class="hidden">
+  <div class="wc">
+    <div class="wiz-logo" id="wizLogo">🚗</div>
+    <div class="wiz-title">¡Bienvenido a CAX!</div>
+    <div class="wiz-sub">Configura tu aseguradora/agencia en unos pasos.</div>
+    <div class="wiz-prog" id="wizProg"></div>
+    <div class="ws active" id="ws0">
+      <div class="fg"><label>Nombre de tu empresa/agencia</label><input type="text" id="wNombre" class="fc" placeholder="Ej: Agencia de Seguros López"></div>
+      <div class="fg"><label>Logo (emoji)</label><input type="text" id="wLogo" class="fc" maxlength="4" value="🚗" oninput="document.getElementById('wizLogo').textContent=this.value||'🚗'"></div>
+      <div class="fg"><label>Moneda</label><input type="text" id="wMoneda" class="fc" maxlength="5" value="Q"></div>
+    </div>
+    <div class="ws" id="ws1">
+      <div class="ws-sub" style="text-align:left;margin-bottom:10px">🎨 Elige el tema de color</div>
+      <div class="swatches" id="wizSwatches">
+        <div class="swatch sel" style="background:#3b82f6" data-c="#3b82f6" onclick="selWizColor(this)"></div>
+        <div class="swatch" style="background:#22c55e" data-c="#22c55e" onclick="selWizColor(this)"></div>
+        <div class="swatch" style="background:#f59e0b" data-c="#f59e0b" onclick="selWizColor(this)"></div>
+        <div class="swatch" style="background:#a855f7" data-c="#a855f7" onclick="selWizColor(this)"></div>
+        <div class="swatch" style="background:#ec4899" data-c="#ec4899" onclick="selWizColor(this)"></div>
+        <div class="swatch" style="background:#ef4444" data-c="#ef4444" onclick="selWizColor(this)"></div>
+      </div>
+    </div>
+    <div class="ws" id="ws2">
+      <div style="text-align:center;padding:16px 0">
+        <div style="font-size:56px;margin-bottom:10px" id="wizFinalLogo">🚗</div>
+        <div style="font-size:18px;font-weight:800;color:var(--bp)" id="wizFinalNombre">Mi Aseguradora</div>
+        <div class="alert a-ok mt3"><span>✅</span><span>Todo listo. Puedes importar tus pólizas desde PDF/Excel o agregarlas manualmente.</span></div>
+      </div>
+    </div>
+    <div class="wiz-actions">
+      <button class="btn btn-s btn-sm hidden" id="wizBackBtn" onclick="wizBack()">← Atrás</button>
+      <button class="btn btn-p" id="wizNextBtn" onclick="wizNext()">Siguiente →</button>
+    </div>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <nav id="sidebar">
+    <div class="sb-head" onclick="go('config')">
+      <div class="sb-logo" id="sbLogo">🚗</div>
+      <div class="sb-name" id="sbName">Mi Aseguradora</div>
+      <div class="sb-type">⚙️ Configurar</div>
+    </div>
+    <div class="sb-nav">
+      <div class="ni active" data-page="dashboard" onclick="go('dashboard')"><span class="ni-icon">🏠</span> Dashboard</div>
+      <div class="ni" data-page="basedatos" onclick="go('basedatos')"><span class="ni-icon">🗂️</span> Base de Datos</div>
+      <div class="ni" data-page="pagos" onclick="go('pagos')"><span class="ni-icon">💳</span> Pagos</div>
+      <div class="ni" data-page="crm" onclick="go('crm')"><span class="ni-icon">📇</span> CRM</div>
+      <div class="ni" data-page="cartera" onclick="go('cartera')"><span class="ni-icon">📁</span> Cartera Vigente</div>
+      <div class="ni" data-page="importar" onclick="go('importar')"><span class="ni-icon">📥</span> Importar</div>
+      <div class="ni" data-page="config" onclick="go('config')"><span class="ni-icon">⚙️</span> Configuración</div>
+    </div>
+    <div class="sb-foot" onclick="doLogout()">🚪 Cerrar sesión</div>
+  </nav>
+  <div id="main">
+    <div class="topbar">
+      <div class="topbar-title" id="topTitle">Dashboard</div>
+      <div class="flex ic g2x">
+        <span id="topDate" class="tsm tm"></span>
+        <button class="btn btn-p btn-sm" onclick="abrirPoliza()">+ Nueva Póliza</button>
+      </div>
+    </div>
+    <div class="content">
+
+      <div id="page-dashboard" class="page active">
+        <div class="sh"><div><div class="sh-t" id="dashWelcome">¡Bienvenido! 👋</div><div class="sh-s">Resumen de tu cartera</div></div><button class="btn btn-g btn-sm" onclick="loadDashboard()">🔄 Actualizar</button></div>
+        <div class="g4 mb4">
+          <div class="stat"><div class="si" style="background:rgba(59,130,246,.15)">🗂️</div><div><div class="sl">Total Pólizas</div><div class="sv" id="dTotal">0</div><div class="ss">registradas</div></div></div>
+          <div class="stat"><div class="si" style="background:rgba(34,197,94,.15)">✅</div><div><div class="sl">Vigentes</div><div class="sv" id="dVigentes">0</div><div class="ss">activas</div></div></div>
+          <div class="stat"><div class="si" style="background:rgba(245,158,11,.15)">⚠️</div><div><div class="sl">Por Vencer</div><div class="sv" id="dPorVencer">0</div><div class="ss">próximos 30 días</div></div></div>
+          <div class="stat"><div class="si" style="background:rgba(239,68,68,.15)">❌</div><div><div class="sl">Vencidas</div><div class="sv" id="dVencidas">0</div><div class="ss">requieren acción</div></div></div>
+        </div>
+        <div class="g2 mb4">
+          <div class="stat"><div class="si" style="background:rgba(59,130,246,.15)">💰</div><div><div class="sl">Prima Anual Total</div><div class="sv" id="dPrimaTotal">Q0</div><div class="ss">suma de cartera</div></div></div>
+          <div class="stat"><div class="si" style="background:rgba(168,85,247,.15)">🚫</div><div><div class="sl">Canceladas</div><div class="sv" id="dCanceladas">0</div><div class="ss">históricas</div></div></div>
+        </div>
+        <div class="card">
+          <div class="flex jb ic mb3"><div class="ct" style="margin:0">⏰ Próximas a Vencer (30 días)</div><button class="btn btn-g btn-sm" onclick="go('crm')">Ver CRM</button></div>
+          <div id="dashProxList"></div>
+        </div>
+      </div>
+
+      <div id="page-basedatos" class="page">
+        <div class="sh"><div><div class="sh-t">🗂️ Base de Datos</div><div class="sh-s">Todas tus pólizas registradas</div></div><button class="btn btn-p" onclick="abrirPoliza()">+ Nueva Póliza</button></div>
+        <div class="card mb3">
+          <div class="flex g2x wrap">
+            <input type="text" id="searchP" class="fc" style="flex:1;min-width:180px" placeholder="Buscar por póliza, nombre, placa, certificado..." oninput="renderPolizas()">
+            <select id="fStatus" class="fc" style="width:150px" onchange="renderPolizas()">
+              <option value="">Todos los estados</option>
+              <option value="VIGENTE">VIGENTE</option>
+              <option value="POR VENCER">POR VENCER</option>
+              <option value="VENCIDA">VENCIDA</option>
+              <option value="CANCELADA">CANCELADA</option>
+            </select>
+            <select id="fYear" class="fc" style="width:130px" onchange="renderPolizas()"><option value="">Todos los años</option></select>
+            <input type="text" id="fPlaca" class="fc" style="width:130px" placeholder="Placa..." oninput="renderPolizas()">
+            <button class="btn btn-g btn-sm" onclick="limpiarFiltrosP()">Limpiar</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="tw"><table>
+            <thead><tr>
+              <th onclick="setSort('noPoliza')">N° Póliza</th><th>Certi</th><th onclick="setSort('nombre')">Nombre</th>
+              <th>Emisión</th><th>Estado</th><th onclick="setSort('fechaVigencia')">Vigencia</th><th>Renovación</th>
+              <th>Placa</th><th onclick="setSort('primaAnual')">Prima Anual</th><th>No. Pagos</th><th>Meses</th><th>Acciones</th>
+            </tr></thead>
+            <tbody id="tabla-polizas"></tbody>
+          </table></div>
+          <div id="emptyP" class="empty hidden"><div class="ei">🗂️</div><div class="em">No se encontraron pólizas</div><div class="es">Agrega una nueva o impórtalas desde Excel/PDF</div></div>
+          <div class="flex jb ic mt3">
+            <div id="tInfo" class="tsm tm"></div>
+            <div class="flex g2x" id="pag"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="page-pagos" class="page">
+        <div class="sh"><div><div class="sh-t">💳 Pagos</div><div class="sh-s">Control de pagos mensuales por póliza</div></div></div>
+        <div class="card mb3">
+          <div class="flex g2x wrap ic">
+            <label class="tsm tm">Mes a revisar:</label>
+            <select id="pagosMes" class="fc" style="width:150px" onchange="renderPagos()">
+              <option value="ENE">Enero</option><option value="FEB">Febrero</option><option value="MAR">Marzo</option>
+              <option value="ABR">Abril</option><option value="MAY">Mayo</option><option value="JUN">Junio</option>
+              <option value="JUL">Julio</option><option value="AGO">Agosto</option><option value="SEP">Septiembre</option>
+              <option value="OCT">Octubre</option><option value="NOV">Noviembre</option><option value="DIC">Diciembre</option>
+            </select>
+            <select id="pagosEstado" class="fc" style="width:170px" onchange="renderPagos()">
+              <option value="">Todos</option>
+              <option value="pendiente">Solo pendientes</option>
+              <option value="pagado">Solo pagados</option>
+            </select>
+          </div>
+        </div>
+        <div class="card">
+          <div class="tw"><table>
+            <thead><tr><th>Póliza</th><th>Nombre</th><th>Endoso</th><th>Requerimiento</th><th>Valor</th><th>Estado</th><th>Acción</th></tr></thead>
+            <tbody id="tabla-pagos"></tbody>
+          </table></div>
+          <div id="emptyPagos" class="empty hidden"><div class="ei">💳</div><div class="em">No hay datos de pago para este mes</div></div>
+        </div>
+      </div>
+
+      <div id="page-crm" class="page">
+        <div class="sh"><div><div class="sh-t">📇 CRM</div><div class="sh-s">Prioriza contactos según urgencia de vencimiento</div></div></div>
+        <div class="card mb3">
+          <div class="flex g2x wrap">
+            <input type="text" id="searchCRM" class="fc" style="flex:1;min-width:180px" placeholder="Buscar por nombre o póliza..." oninput="renderCRM()">
+            <select id="fCRMEst" class="fc" style="width:170px" onchange="renderCRM()">
+              <option value="">Todos</option>
+              <option value="vencida">🔴 Vencidas</option>
+              <option value="urgente">🟠 Urgente (≤7 días)</option>
+              <option value="soon">🟡 Próximo (≤30 días)</option>
+              <option value="activo">🟢 Activo</option>
+            </select>
+          </div>
+        </div>
+        <div class="ga" id="crm-grid"></div>
+      </div>
+
+      <div id="page-cartera" class="page">
+        <div class="sh"><div><div class="sh-t">📁 Cartera Vigente</div><div class="sh-s">Solo pólizas activas actualmente</div></div><button class="btn btn-g" onclick="copiarCartera()">📋 Copiar resumen</button></div>
+        <div class="g4 mb4">
+          <div class="stat"><div class="si" style="background:rgba(34,197,94,.15)">✅</div><div><div class="sl">Pólizas Vigentes</div><div class="sv" id="cartTotal">0</div></div></div>
+          <div class="stat"><div class="si" style="background:rgba(59,130,246,.15)">💰</div><div><div class="sl">Prima Anual Total</div><div class="sv" id="cartPrima">Q0</div></div></div>
+          <div class="stat"><div class="si" style="background:rgba(168,85,247,.15)">📊</div><div><div class="sl">Prima Promedio</div><div class="sv" id="cartProm">Q0</div></div></div>
+          <div class="stat"><div class="si" style="background:rgba(245,158,11,.15)">⚠️</div><div><div class="sl">Por Vencer Pronto</div><div class="sv" id="cartPorVencer">0</div></div></div>
+        </div>
+        <div class="card">
+          <div class="tw"><table>
+            <thead><tr><th>N° Póliza</th><th>Nombre</th><th>Placa</th><th>Vigencia</th><th>Prima Anual</th><th>Días Restantes</th></tr></thead>
+            <tbody id="tabla-cartera"></tbody>
+          </table></div>
+          <div id="emptyCartera" class="empty hidden"><div class="ei">📁</div><div class="em">No hay pólizas vigentes</div></div>
+        </div>
+      </div>
+
+      <div id="page-importar" class="page">
+        <div class="sh"><div><div class="sh-t">📥 Importar Pólizas</div><div class="sh-s">Desde PDF, Excel, o agrega manualmente</div></div></div>
+        <div class="g2 mb4">
+          <div class="card">
+            <div class="ct mb3">📄 Importar desde PDF</div>
+            <div class="dropzone" onclick="document.getElementById('pdfInput').click()">
+              <div class="dzi">📄</div>
+              <div class="fw">Haz clic para seleccionar PDF(s)</div>
+              <div class="tsm tm mt2">Se extraerán los datos automáticamente</div>
+            </div>
+            <input type="file" id="pdfInput" accept="application/pdf" multiple class="hidden" onchange="handlePDFUpload(event)">
+          </div>
+          <div class="card">
+            <div class="ct mb3">📊 Importar desde Excel</div>
+            <div class="dropzone" onclick="document.getElementById('excelInput').click()">
+              <div class="dzi">📊</div>
+              <div class="fw">Haz clic para seleccionar Excel(s)</div>
+              <div class="tsm tm mt2">.xlsx o .xls — primera hoja</div>
+            </div>
+            <input type="file" id="excelInput" accept=".xlsx,.xls" multiple class="hidden" onchange="handleExcelUpload(event)">
+          </div>
+        </div>
+        <div class="card mb4">
+          <div class="ct mb3">✍️ Entrada Manual</div>
+          <div class="tsm tm mb3">¿Prefieres agregar una póliza a mano? Usa el botón de arriba.</div>
+          <button class="btn btn-p" onclick="abrirPoliza()">+ Nueva Póliza Manual</button>
+        </div>
+        <div class="card">
+          <div class="ct mb3">📋 Registro de Importación</div>
+          <div id="importLog"><div class="tm tsm" style="text-align:center;padding:16px">Aún no se ha importado nada en esta sesión.</div></div>
+        </div>
+      </div>
+
+      <div id="page-config" class="page">
+        <div class="sh"><div><div class="sh-t">⚙️ Configuración</div><div class="sh-s">Personaliza tu cuenta</div></div><button class="btn btn-p" onclick="guardarConfig()">💾 Guardar</button></div>
+        <div class="cfg-b mb3"><div class="cfg-bh"><span>🏷️</span><span>Identidad</span></div><div class="cfg-bb">
+          <div class="g2">
+            <div class="fg"><label>Nombre de empresa/agencia</label><input type="text" id="cfgNombre" class="fc"></div>
+            <div class="fg"><label>Logo (emoji)</label><input type="text" id="cfgLogo" class="fc" maxlength="4"></div>
+            <div class="fg"><label>Moneda</label><input type="text" id="cfgMoneda" class="fc" maxlength="5"></div>
+          </div>
+        </div></div>
+        <div class="cfg-b mb3"><div class="cfg-bh"><span>🎨</span><span>Tema de Color</span></div><div class="cfg-bb">
+          <div class="swatches" id="cfgSwatches">
+            <div class="swatch" style="background:#3b82f6" data-c="#3b82f6" onclick="selCfgColor(this)"></div>
+            <div class="swatch" style="background:#22c55e" data-c="#22c55e" onclick="selCfgColor(this)"></div>
+            <div class="swatch" style="background:#f59e0b" data-c="#f59e0b" onclick="selCfgColor(this)"></div>
+            <div class="swatch" style="background:#a855f7" data-c="#a855f7" onclick="selCfgColor(this)"></div>
+            <div class="swatch" style="background:#ec4899" data-c="#ec4899" onclick="selCfgColor(this)"></div>
+            <div class="swatch" style="background:#ef4444" data-c="#ef4444" onclick="selCfgColor(this)"></div>
+          </div>
+        </div></div>
+        <div class="flex jb mt3"><button class="btn btn-d btn-sm" onclick="resetearDatos()">🗑️ Eliminar TODAS las pólizas</button></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="mPoliza"><div class="modal"><div class="mh"><div class="mt" id="mPolizaTitle">📄 Nueva Póliza</div><button class="mc" onclick="closeModal('mPoliza')">✕</button></div><div class="mb">
+  <div class="g2">
+    <div class="fg"><label>N° Póliza *</label><input type="text" id="pNoPoliza" class="fc" placeholder="Ej: 91-1002426"></div>
+    <div class="fg"><label>N° Certificado</label><input type="text" id="pNoCerti" class="fc"></div>
+  </div>
+  <div class="fg"><label>Nombre del Asegurado *</label><input type="text" id="pNombre" class="fc"></div>
+  <div class="g2">
+    <div class="fg"><label>Teléfono</label><input type="text" id="pTelefono" class="fc"></div>
+    <div class="fg"><label>Email</label><input type="email" id="pEmail" class="fc"></div>
+  </div>
+  <div class="g2">
+    <div class="fg"><label>Placa</label><input type="text" id="pPlaca" class="fc" style="text-transform:uppercase"></div>
+    <div class="fg"><label>Cambio de Placa</label><input type="text" id="pCambioPlaca" class="fc" style="text-transform:uppercase"></div>
+  </div>
+  <div class="g2">
+    <div class="fg"><label>Fecha Emisión</label><input type="date" id="pFechaEmision" class="fc"></div>
+    <div class="fg"><label>Fecha Vigencia (hasta)</label><input type="date" id="pFechaVigencia" class="fc"></div>
+  </div>
+  <div class="g2">
+    <div class="fg"><label>Fecha Renovación</label><input type="date" id="pFechaRenovacion" class="fc"></div>
+    <div class="fg"><label>Fecha Cancelación</label><input type="date" id="pFechaCancelacion" class="fc"></div>
+  </div>
+  <div class="fg"><label>Estado</label><select id="pStatus" class="fc">
+    <option value="VIGENTE">VIGENTE</option><option value="POR VENCER">POR VENCER</option>
+    <option value="VENCIDA">VENCIDA</option><option value="CANCELADA">CANCELADA</option>
+  </select></div>
+  <div class="g2">
+    <div class="fg"><label>Prima Anual</label><input type="number" id="pPrimaAnual" class="fc" min="0" step="0.01"></div>
+    <div class="fg"><label>Renovación Prima</label><input type="number" id="pRenovacionPrima" class="fc" min="0" step="0.01"></div>
+  </div>
+  <div class="g2">
+    <div class="fg"><label>No. de Pagos</label><input type="number" id="pNoPago" class="fc" min="1" value="12"></div>
+    <div class="fg"><label>Prima Neta</label><input type="number" id="pPrimaNeta" class="fc" min="0" step="0.01"></div>
+  </div>
+  <div class="fg"><label>Comisión 5%</label><input type="number" id="pPct5" class="fc" min="0" step="0.01"></div>
+  <div class="fg"><label>Notas</label><textarea id="pNotas" class="fc" rows="2"></textarea></div>
+  <div class="ct mt3 mb2">📅 Detalle Mensual (opcional)</div>
+  <div class="month-edit-grid" id="monthEditGrid"></div>
+  <input type="hidden" id="pEditId">
+</div><div class="mf"><button class="btn btn-g" onclick="closeModal('mPoliza')">Cancelar</button><button class="btn btn-p" onclick="guardarPoliza()">💾 Guardar Póliza</button></div></div></div>
+
+<div class="modal-overlay" id="mConfirm"><div class="modal" style="max-width:380px"><div class="mh"><div class="mt" id="confirmTitle">⚠️ Confirmar</div><button class="mc" onclick="closeModal('mConfirm')">✕</button></div><div class="mb"><p id="confirmMsg" style="font-size:13px;line-height:1.6"></p></div><div class="mf"><button class="btn btn-g" onclick="closeModal('mConfirm')">Cancelar</button><button class="btn btn-d" id="confirmBtn">Confirmar</button></div></div></div>
+
+<div id="toasts"></div>
+
+<script>
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let CURRENT_USER = null;
+const MESES = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+let CFG = { nombre:'Mi Aseguradora', logo:'🚗', color:'#3b82f6', moneda:'Q', onboarded:false };
+let polizas = [];
+let currentEditId = null;
+let sortField = null, sortDir = 1;
+let currentPage = 1;
+const PAGESIZE = 20;
+let wizStep = 0; const WIZ_TOTAL = 3; let wizColor = '#3b82f6';
+let importLogEntries = [];
+
+function uid(){return Date.now().toString(36)+Math.random().toString(36).substr(2,5);}
+function pad(n){return String(n).padStart(2,'0');}
+function isValidDate(d){return d instanceof Date && !isNaN(d.getTime()) && d.getFullYear()>1900 && d.getFullYear()<2100;}
+function toISO(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function today(){return new Date().toISOString().split('T')[0];}
+function fmtQ(val){const n=parseFloat(val)||0; if(n===0) return '-'; return CFG.moneda+' '+n.toLocaleString('es-GT',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function toast(msg,type){type=type||'ok';const c=document.getElementById('toasts');const el=document.createElement('div');el.className='toast t-'+type;el.textContent=msg;c.appendChild(el);setTimeout(function(){if(el.parentNode)el.remove();},3800);}
+function openModal(id){const m=document.getElementById(id);if(m){m.style.display='flex';requestAnimationFrame(function(){m.classList.add('open');});}}
+function closeModal(id){const m=document.getElementById(id);if(m){m.classList.remove('open');setTimeout(function(){m.style.display='none';},200);}}
+document.querySelectorAll('.modal-overlay').forEach(function(o){o.addEventListener('click',function(e){if(e.target===o)closeModal(o.id);});});
+let _cb=null;
+function showConfirm(title,msg,cb){document.getElementById('confirmTitle').textContent=title;document.getElementById('confirmMsg').textContent=msg;_cb=cb;openModal('mConfirm');}
+document.getElementById('confirmBtn').onclick=function(){if(_cb){_cb();_cb=null;}closeModal('mConfirm');};
+
+function safeParseDate(val){
+  if(!val && val!==0) return '';
+  const s = val.toString().trim();
+  if(!s || s==='-' || s.toLowerCase()==='null') return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)){
+    const d = new Date(s+'T00:00:00');
+    return isValidDate(d) ? s : '';
+  }
+  const num = Number(s.replace(/,/g,''));
+  if(!isNaN(num) && num>1 && num<200000 && s===num.toString()){
+    const d = new Date((num-25569)*86400*1000);
+    return isValidDate(d) ? toISO(d) : '';
+  }
+  const dmy = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if(dmy){
+    let d=dmy[1], m=dmy[2], y=dmy[3];
+    if(y.length===2) y='20'+y;
+    const dt = new Date(y+'-'+pad(m)+'-'+pad(d)+'T00:00:00');
+    if(isValidDate(dt)) return toISO(dt);
+    const dt2 = new Date(y+'-'+pad(d)+'-'+pad(m)+'T00:00:00');
+    if(isValidDate(dt2)) return toISO(dt2);
+  }
+  const ymd = s.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if(ymd){
+    const y=ymd[1],m=ymd[2],d=ymd[3];
+    const dt = new Date(y+'-'+pad(m)+'-'+pad(d)+'T00:00:00');
+    return isValidDate(dt) ? toISO(dt) : '';
+  }
+  const monthNames = {enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12,jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  const textM = s.toLowerCase().match(/(\d{1,2})\s+([a-z\u00e1\u00e9\u00ed\u00f3\u00fa]+)\s+(\d{4})/);
+  if(textM){
+    const mn = monthNames[textM[2]];
+    if(mn){ const dt = new Date(textM[3]+'-'+pad(mn)+'-'+pad(textM[1])+'T00:00:00'); return isValidDate(dt) ? toISO(dt) : ''; }
+  }
+  const textM2 = s.toLowerCase().match(/([a-z\u00e1\u00e9\u00ed\u00f3\u00fa]+)\s+(\d{1,2})[,\s]+(\d{4})/);
+  if(textM2){
+    const mn = monthNames[textM2[1]];
+    if(mn){ const dt = new Date(textM2[3]+'-'+pad(mn)+'-'+pad(textM2[2])+'T00:00:00'); return isValidDate(dt) ? toISO(dt) : ''; }
+  }
+  const native = new Date(s);
+  if(isValidDate(native) && native.getFullYear()>1990 && native.getFullYear()<2100) return toISO(native);
+  return '';
+}
+function fmtDate(dateStr){
+  if(!dateStr) return '-';
+  const iso = safeParseDate(dateStr);
+  if(!iso) return dateStr || '-';
+  try{ const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString('es-GT',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+  catch(e){ return iso; }
+}
+function normalizeDates(p){
+  const out = Object.assign({}, p);
+  ['fechaEmision','fechaVigencia','fechaRenovacion','fechaCancelacion'].forEach(function(f){
+    out[f] = safeParseDate(p[f]) || '';
+  });
+  return out;
+}
+
+function getEstado(p){
+  const s = (p.status||'').toUpperCase().trim();
+  if(s==='CANCELADA') return 'CANCELADA';
+  const vigISO = safeParseDate(p.fechaVigencia) || safeParseDate(p.fechaRenovacion);
+  if(!vigISO) return s || 'VIGENTE';
+  const t = new Date(); t.setHours(0,0,0,0);
+  const hasta = new Date(vigISO+'T00:00:00');
+  if(!isValidDate(hasta)) return s || 'VIGENTE';
+  const diff = Math.ceil((hasta-t)/(1000*60*60*24));
+  if(diff<0) return 'VENCIDA';
+  if(diff<=30) return 'POR VENCER';
+  return 'VIGENTE';
+}
+function getDaysLeft(p){
+  const vigISO = safeParseDate(p.fechaVigencia) || safeParseDate(p.fechaRenovacion);
+  if(!vigISO) return 9999;
+  const t = new Date(); t.setHours(0,0,0,0);
+  const hasta = new Date(vigISO+'T00:00:00');
+  if(!isValidDate(hasta)) return 9999;
+  return Math.ceil((hasta-t)/(1000*60*60*24));
+}
+function getBadge(estado){
+  const e=(estado||'').toUpperCase();
+  if(e==='VIGENTE') return '<span class="badge b-v">✅ VIGENTE</span>';
+  if(e==='VENCIDA') return '<span class="badge b-e">❌ VENCIDA</span>';
+  if(e==='POR VENCER') return '<span class="badge b-p">⚠️ POR VENCER</span>';
+  if(e==='CANCELADA') return '<span class="badge b-c">🚫 CANCELADA</span>';
+  return '<span class="badge" style="background:#2a2a2e;color:#9ca3af">'+escHtml(estado||'-')+'</span>';
+}
+
+function getDupKey(p){ return (p.noPoliza||'').trim().toLowerCase()+'|'+(p.noCerti||'').toString().trim(); }
+function isDuplicate(p){ const key=getDupKey(p); return polizas.some(function(e){return getDupKey(e)===key;}); }
+
+function switchAuthTab(tab){
+  document.getElementById('tabLogin').classList.toggle('active',tab==='login');
+  document.getElementById('tabSignup').classList.toggle('active',tab==='signup');
+  document.getElementById('loginForm').classList.toggle('hidden',tab!=='login');
+  document.getElementById('signupForm').classList.toggle('hidden',tab!=='signup');
+  document.getElementById('authMsg').innerHTML='';
+}
+function showAuthMsg(msg,ok){document.getElementById('authMsg').innerHTML='<div class="'+(ok?'auth-ok':'auth-err')+'">'+msg+'</div>';}
+async function doLogin(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const pass=document.getElementById('loginPass').value;
+  if(!email||!pass){showAuthMsg('Ingresa correo y contraseña');return;}
+  const res=await sb.auth.signInWithPassword({email:email,password:pass});
+  if(res.error){showAuthMsg(res.error.message);return;}
+  await onAuthReady(res.data.user);
+}
+async function doSignup(){
+  const email=document.getElementById('signupEmail').value.trim();
+  const pass=document.getElementById('signupPass').value;
+  if(!email||!pass||pass.length<6){showAuthMsg('Correo válido y contraseña de mínimo 6 caracteres');return;}
+  const res=await sb.auth.signUp({email:email,password:pass});
+  if(res.error){showAuthMsg(res.error.message);return;}
+  if(res.data.user && !res.data.session){showAuthMsg('Cuenta creada. Revisa tu correo para confirmar (si aplica) e inicia sesión.',true);switchAuthTab('login');return;}
+  await onAuthReady(res.data.user);
+}
+async function doLogout(){ await sb.auth.signOut(); location.reload(); }
+async function onAuthReady(user){
+  CURRENT_USER=user;
+  document.getElementById('authScreen').classList.add('hidden');
+  await loadOrInitConfig();
+  if(!CFG.onboarded){
+    document.getElementById('wizard').classList.remove('hidden');
+    renderWizProg(); showWizStep();
+  } else {
+    document.getElementById('app').classList.remove('hidden');
+    applyConfig();
+    await loadPolizas();
+    loadApp();
+  }
+}
+
+async function loadOrInitConfig(){
+  const res=await sb.from('cax_config').select('*').eq('user_id',CURRENT_USER.id).maybeSingle();
+  const data=res.data;
+  if(data){ CFG={nombre:data.nombre_empresa,logo:data.logo,color:data.color,moneda:data.moneda,onboarded:data.onboarded}; }
+  else {
+    await sb.from('cax_config').insert([{user_id:CURRENT_USER.id,nombre_empresa:'Mi Aseguradora',logo:'🚗',color:'#3b82f6',moneda:'Q',onboarded:false}]);
+    CFG.onboarded=false;
+  }
+}
+async function saveCFG(){
+  await sb.from('cax_config').update({nombre_empresa:CFG.nombre,logo:CFG.logo,color:CFG.color,moneda:CFG.moneda,onboarded:CFG.onboarded}).eq('user_id',CURRENT_USER.id);
+}
+function applyConfig(){
+  document.documentElement.style.setProperty('--bs',CFG.color);
+  document.getElementById('sbLogo').textContent=CFG.logo;
+  document.getElementById('sbName').textContent=CFG.nombre;
+  document.getElementById('dashWelcome').textContent='¡Bienvenido a '+CFG.nombre+'! 👋';
+  document.title='🚗 '+CFG.nombre;
+}
+
+function renderWizProg(){const el=document.getElementById('wizProg');el.innerHTML=Array.from({length:WIZ_TOTAL},function(_,i){return '<div class="wd '+(i<wizStep?'done':(i===wizStep?'active':''))+'"></div>';}).join('');}
+function selWizColor(el){document.querySelectorAll('#wizSwatches .swatch').forEach(function(s){s.classList.remove('sel');});el.classList.add('sel');wizColor=el.dataset.c;}
+function showWizStep(){
+  document.querySelectorAll('.ws').forEach(function(s,i){s.classList.toggle('active',i===wizStep);});
+  renderWizProg();
+  const isLast=wizStep===WIZ_TOTAL-1, isFirst=wizStep===0;
+  document.getElementById('wizNextBtn').textContent=isLast?'🚀 ¡Comenzar!':'Siguiente →';
+  document.getElementById('wizBackBtn').classList.toggle('hidden',isFirst);
+  if(isLast){
+    document.getElementById('wizFinalNombre').textContent=document.getElementById('wNombre').value.trim()||'Mi Aseguradora';
+    document.getElementById('wizFinalLogo').textContent=document.getElementById('wLogo').value.trim()||'🚗';
+  }
+}
+function wizNext(){if(wizStep===WIZ_TOTAL-1){finalizarWizard();return;}wizStep++;showWizStep();}
+function wizBack(){if(wizStep>0){wizStep--;showWizStep();}}
+async function finalizarWizard(){
+  CFG.nombre=document.getElementById('wNombre').value.trim()||'Mi Aseguradora';
+  CFG.logo=document.getElementById('wLogo').value.trim()||'🚗';
+  CFG.color=wizColor;
+  CFG.moneda=document.getElementById('wMoneda').value.trim()||'Q';
+  CFG.onboarded=true;
+  await saveCFG();
+  document.getElementById('wizard').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  applyConfig();
+  await loadPolizas();
+  loadApp();
+}
+
+function go(page){
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+  document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('active');});
+  const pg=document.getElementById('page-'+page); if(pg)pg.classList.add('active');
+  const nav=document.querySelector('[data-page="'+page+'"]'); if(nav)nav.classList.add('active');
+  const titles={dashboard:'🏠 Dashboard',basedatos:'🗂️ Base de Datos',pagos:'💳 Pagos',crm:'📇 CRM',cartera:'📁 Cartera Vigente',importar:'📥 Importar',config:'⚙️ Configuración'};
+  document.getElementById('topTitle').textContent=titles[page]||page;
+  if(page==='dashboard')loadDashboard();
+  if(page==='basedatos')renderPolizas();
+  if(page==='pagos')renderPagos();
+  if(page==='crm')renderCRM();
+  if(page==='cartera')renderCartera();
+  if(page==='config')loadConfigForm();
+}
+
+async function loadPolizas(){
+  const res=await sb.from('cax_polizas').select('*').eq('user_id',CURRENT_USER.id);
+  polizas=(res.data||[]).map(function(x){
+    return normalizeDates({
+      id:x.id, noPoliza:x.no_poliza, noCerti:x.no_certi, nombre:x.nombre,
+      fechaEmision:x.fecha_emision, fechaVigencia:x.fecha_vigencia, fechaRenovacion:x.fecha_renovacion, fechaCancelacion:x.fecha_cancelacion,
+      status:x.status, placa:x.placa, cambioPlaca:x.cambio_placa,
+      primaAnual:x.prima_anual, renovacionPrima:x.renovacion_prima, noPago:x.no_pago, primaNeta:x.prima_neta, pct5:x.pct5,
+      divisa:x.divisa, meses:x.meses||{}, telefono:x.telefono, email:x.email, notas:x.notas, sourceFile:x.source_file
+    });
+  });
+}
+function polizaToPayload(p){
+  return {
+    no_poliza:p.noPoliza||null, no_certi:p.noCerti||null, nombre:p.nombre||null,
+    fecha_emision:p.fechaEmision||null, fecha_vigencia:p.fechaVigencia||null, fecha_renovacion:p.fechaRenovacion||null, fecha_cancelacion:p.fechaCancelacion||null,
+    status:p.status||'VIGENTE', placa:p.placa||null, cambio_placa:p.cambioPlaca||null,
+    prima_anual:p.primaAnual||0, renovacion_prima:p.renovacionPrima||0, no_pago:p.noPago||12, prima_neta:p.primaNeta||0, pct5:p.pct5||0,
+    divisa:p.divisa||'Q', meses:p.meses||{}, telefono:p.telefono||null, email:p.email||null, notas:p.notas||null, source_file:p.sourceFile||null
+  };
+}
+async function insertPolizas(arr){
+  if(arr.length===0) return;
+  const payloads = arr.map(function(p){ return Object.assign({user_id:CURRENT_USER.id}, polizaToPayload(p)); });
+  await sb.from('cax_polizas').insert(payloads);
+}
+
+function renderMonthEditGrid(meses){
+  meses = meses || {};
+  const el = document.getElementById('monthEditGrid');
+  el.innerHTML = MESES.map(function(m){
+    const d = meses[m] || {};
+    return '<div class="month-edit-card">'+
+      '<div class="mt-title">'+m+'</div>'+
+      '<input type="text" placeholder="Endoso" data-mes="'+m+'" data-f="endoso" value="'+escHtml(d.endoso||'')+'">'+
+      '<input type="text" placeholder="Requerimiento" data-mes="'+m+'" data-f="requerimiento" value="'+escHtml(d.requerimiento||'')+'">'+
+      '<input type="number" placeholder="Valor" step="0.01" data-mes="'+m+'" data-f="valor" value="'+(d.valor||'')+'">'+
+      '<label><input type="checkbox" data-mes="'+m+'" data-f="pagado" '+(d.pagado?'checked':'')+'> Pagado</label>'+
+    '</div>';
+  }).join('');
+}
+function readMonthEditGrid(){
+  const meses = {};
+  MESES.forEach(function(m){
+    const endoso = document.querySelector('[data-mes="'+m+'"][data-f="endoso"]').value.trim();
+    const req = document.querySelector('[data-mes="'+m+'"][data-f="requerimiento"]').value.trim();
+    const valorStr = document.querySelector('[data-mes="'+m+'"][data-f="valor"]').value;
+    const valor = parseFloat(valorStr)||0;
+    const pagado = document.querySelector('[data-mes="'+m+'"][data-f="pagado"]').checked;
+    if(endoso||req||valor){ meses[m] = { endoso:endoso, requerimiento:req, valor:valor, pagado:pagado }; }
+  });
+  return meses;
+}
+function abrirPoliza(){
+  currentEditId = null;
+  document.getElementById('mPolizaTitle').textContent='📄 Nueva Póliza';
+  ['pNoPoliza','pNoCerti','pNombre','pTelefono','pEmail','pPlaca','pCambioPlaca','pFechaEmision','pFechaVigencia','pFechaRenovacion','pFechaCancelacion','pPrimaAnual','pRenovacionPrima','pPrimaNeta','pPct5','pNotas'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('pStatus').value='VIGENTE';
+  document.getElementById('pNoPago').value=12;
+  document.getElementById('pEditId').value='';
+  renderMonthEditGrid({});
+  openModal('mPoliza');
+}
+function editarPoliza(id){
+  const p = polizas.find(function(x){return x.id===id;}); if(!p) return;
+  currentEditId = id;
+  document.getElementById('mPolizaTitle').textContent='✏️ Editar Póliza';
+  document.getElementById('pNoPoliza').value=p.noPoliza||'';
+  document.getElementById('pNoCerti').value=p.noCerti||'';
+  document.getElementById('pNombre').value=p.nombre||'';
+  document.getElementById('pTelefono').value=p.telefono||'';
+  document.getElementById('pEmail').value=p.email||'';
+  document.getElementById('pPlaca').value=p.placa||'';
+  document.getElementById('pCambioPlaca').value=p.cambioPlaca||'';
+  document.getElementById('pFechaEmision').value=p.fechaEmision||'';
+  document.getElementById('pFechaVigencia').value=p.fechaVigencia||'';
+  document.getElementById('pFechaRenovacion').value=p.fechaRenovacion||'';
+  document.getElementById('pFechaCancelacion').value=p.fechaCancelacion||'';
+  document.getElementById('pStatus').value=p.status||'VIGENTE';
+  document.getElementById('pPrimaAnual').value=p.primaAnual||'';
+  document.getElementById('pRenovacionPrima').value=p.renovacionPrima||'';
+  document.getElementById('pNoPago').value=p.noPago||12;
+  document.getElementById('pPrimaNeta').value=p.primaNeta||'';
+  document.getElementById('pPct5').value=p.pct5||'';
+  document.getElementById('pNotas').value=p.notas||'';
+  document.getElementById('pEditId').value=id;
+  renderMonthEditGrid(p.meses||{});
+  openModal('mPoliza');
+}
+async function guardarPoliza(){
+  const noPoliza = document.getElementById('pNoPoliza').value.trim();
+  const nombre = document.getElementById('pNombre').value.trim();
+  if(!noPoliza && !nombre){ toast('⚠️ Ingresa al menos el N° de Póliza o el Nombre','err'); return; }
+  const editId = document.getElementById('pEditId').value;
+  const p = {
+    noPoliza:noPoliza, noCerti:document.getElementById('pNoCerti').value.trim(), nombre:nombre,
+    telefono:document.getElementById('pTelefono').value.trim(), email:document.getElementById('pEmail').value.trim(),
+    placa:document.getElementById('pPlaca').value.trim().toUpperCase(), cambioPlaca:document.getElementById('pCambioPlaca').value.trim().toUpperCase(),
+    fechaEmision:safeParseDate(document.getElementById('pFechaEmision').value), fechaVigencia:safeParseDate(document.getElementById('pFechaVigencia').value),
+    fechaRenovacion:safeParseDate(document.getElementById('pFechaRenovacion').value), fechaCancelacion:safeParseDate(document.getElementById('pFechaCancelacion').value),
+    status:document.getElementById('pStatus').value,
+    primaAnual:parseFloat(document.getElementById('pPrimaAnual').value)||0, renovacionPrima:parseFloat(document.getElementById('pRenovacionPrima').value)||0,
+    noPago:parseInt(document.getElementById('pNoPago').value)||12, primaNeta:parseFloat(document.getElementById('pPrimaNeta').value)||0,
+    pct5:parseFloat(document.getElementById('pPct5').value)||0, divisa:CFG.moneda,
+    notas:document.getElementById('pNotas').value.trim(), meses:readMonthEditGrid()
+  };
+  if(editId){
+    await sb.from('cax_polizas').update(polizaToPayload(p)).eq('id',editId);
+    toast('✅ Póliza actualizada');
+  } else {
+    if(isDuplicate(p)){ toast('⚠️ Ya existe una póliza con ese N°/Certificado','warn'); return; }
+    await sb.from('cax_polizas').insert([Object.assign({user_id:CURRENT_USER.id}, polizaToPayload(p))]);
+    toast('✅ Póliza registrada');
+  }
+  await loadPolizas();
+  closeModal('mPoliza');
+  renderPolizas(); loadDashboard();
+}
+function confirmDelete(id){
+  showConfirm('🗑️ Eliminar Póliza','¿Confirmas eliminar esta póliza? No se puede deshacer.',async function(){
+    await sb.from('cax_polizas').delete().eq('id',id);
+    await loadPolizas();
+    renderPolizas(); loadDashboard();
+    toast('🗑️ Póliza eliminada','warn');
+  });
+}
+function toggleMonthDetail(id){
+  const row = document.getElementById(id);
+  if(row) row.classList.toggle('hidden');
+}
+
+function loadDashboard(){
+  const total = polizas.length;
+  const vigentes = polizas.filter(function(p){return getEstado(p)==='VIGENTE';}).length;
+  const porVencer = polizas.filter(function(p){return getEstado(p)==='POR VENCER';}).length;
+  const vencidas = polizas.filter(function(p){return getEstado(p)==='VENCIDA';}).length;
+  const canceladas = polizas.filter(function(p){return getEstado(p)==='CANCELADA';}).length;
+  const primaTotal = polizas.reduce(function(s,p){return s+(parseFloat(p.primaAnual)||0);},0);
+  document.getElementById('dTotal').textContent = total;
+  document.getElementById('dVigentes').textContent = vigentes;
+  document.getElementById('dPorVencer').textContent = porVencer;
+  document.getElementById('dVencidas').textContent = vencidas;
+  document.getElementById('dCanceladas').textContent = canceladas;
+  document.getElementById('dPrimaTotal').textContent = fmtQ(primaTotal);
+  const prox = polizas.filter(function(p){const d=getDaysLeft(p); return d>=0 && d<=30 && getEstado(p)!=='CANCELADA';}).sort(function(a,b){return getDaysLeft(a)-getDaysLeft(b);}).slice(0,8);
+  const el = document.getElementById('dashProxList');
+  el.innerHTML = prox.length===0 ? '<div class="tm tsm" style="text-align:center;padding:16px">No hay pólizas por vencer en los próximos 30 días ✅</div>' : prox.map(function(p){
+    const d = getDaysLeft(p);
+    const color = d<=7 ? 'var(--er)' : 'var(--wa)';
+    return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">'+
+      '<div><div style="font-weight:700;font-size:12.5px">'+escHtml(p.nombre||'Sin nombre')+'</div><div class="tm tsm">'+escHtml(p.noPoliza||'-')+' · '+escHtml(p.placa||'-')+'</div></div>'+
+      '<div style="text-align:right"><div style="font-weight:800;color:'+color+'">'+d+' días</div><div class="tm tsm">'+fmtDate(p.fechaVigencia)+'</div></div></div>';
+  }).join('');
+}
+
+function setSort(field){
+  if(sortField===field){ sortDir=-sortDir; } else { sortField=field; sortDir=1; }
+  renderPolizas();
+}
+function limpiarFiltrosP(){
+  document.getElementById('searchP').value='';
+  document.getElementById('fStatus').value='';
+  document.getElementById('fYear').value='';
+  document.getElementById('fPlaca').value='';
+  renderPolizas();
+}
+function renderPolizas(){
+  const search = (document.getElementById('searchP')&&document.getElementById('searchP').value||'').toLowerCase();
+  const status = (document.getElementById('fStatus')&&document.getElementById('fStatus').value)||'';
+  const year = (document.getElementById('fYear')&&document.getElementById('fYear').value)||'';
+  const placaF = (document.getElementById('fPlaca')&&document.getElementById('fPlaca').value||'').toLowerCase();
+
+  const years = [...new Set(polizas.map(function(p){return (safeParseDate(p.fechaVigencia)||'').substring(0,4);}).filter(Boolean))].sort();
+  const ySel = document.getElementById('fYear');
+  if(ySel){ const cur=ySel.value; ySel.innerHTML='<option value="">Todos los años</option>'+years.map(function(y){return '<option value="'+y+'" '+(y===cur?'selected':'')+'>'+y+'</option>';}).join(''); ySel.value = year; }
+
+  let filtered = polizas.filter(function(p){
+    const ms = !search || (p.noPoliza||'').toLowerCase().includes(search) || (p.nombre||'').toLowerCase().includes(search) || (p.placa||'').toLowerCase().includes(search) || (p.noCerti||'').toString().toLowerCase().includes(search);
+    const mst = !status || getEstado(p)===status;
+    const vigISO = safeParseDate(p.fechaVigencia)||'';
+    const my = !year || vigISO.startsWith(year);
+    const mp = !placaF || (p.placa||'').toLowerCase().includes(placaF);
+    return ms && mst && my && mp;
+  });
+
+  if(sortField){
+    filtered.sort(function(a,b){
+      let va=a[sortField]||'', vb=b[sortField]||'';
+      if(typeof va==='string') va=va.toLowerCase();
+      if(typeof vb==='string') vb=vb.toLowerCase();
+      return va<vb ? -sortDir : (va>vb ? sortDir : 0);
+    });
+  }
+
+  const total = filtered.length;
+  const pages = Math.ceil(total/PAGESIZE)||1;
+  if(currentPage>pages) currentPage=1;
+  const start=(currentPage-1)*PAGESIZE;
+  const pageData = filtered.slice(start, start+PAGESIZE);
+
+  const tbody = document.getElementById('tabla-polizas');
+  const empty = document.getElementById('emptyP');
+  if(pageData.length===0){ tbody.innerHTML=''; empty.classList.remove('hidden'); }
+  else {
+    empty.classList.add('hidden');
+    let rows='';
+    pageData.forEach(function(p){
+      const est = getEstado(p);
+      const pa = parseFloat(p.primaAnual)||0;
+      const hasMeses = p.meses && MESES.some(function(m){return p.meses[m] && (p.meses[m].valor||p.meses[m].endoso||p.meses[m].requerimiento);});
+      const pid = p.id;
+      rows += '<tr>'+
+        '<td><strong style="color:var(--bs)">'+escHtml(p.noPoliza||'-')+'</strong></td>'+
+        '<td>'+escHtml(p.noCerti||'-')+'</td>'+
+        '<td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis">'+escHtml(p.nombre||'-')+'</td>'+
+        '<td>'+fmtDate(p.fechaEmision)+'</td>'+
+        '<td>'+getBadge(est)+'</td>'+
+        '<td>'+fmtDate(p.fechaVigencia)+'</td>'+
+        '<td>'+fmtDate(p.fechaRenovacion)+'</td>'+
+        '<td><strong style="color:var(--bp)">'+escHtml(p.placa||'-')+'</strong></td>'+
+        '<td><strong>'+fmtQ(pa)+'</strong></td>'+
+        '<td style="text-align:center">'+(p.noPago||'-')+'</td>'+
+        '<td>'+(hasMeses ? '<span style="cursor:pointer;color:var(--bs);font-weight:700;font-size:10px" onclick="toggleMonthDetail(\'md-'+pid+'\')">📅 Ver meses ▼</span>' : '<span class="tm tsm">Sin datos</span>')+'</td>'+
+        '<td><button class="btn btn-p btn-xs" onclick="editarPoliza(\''+pid+'\')">✏️</button> <button class="btn btn-d btn-xs" onclick="confirmDelete(\''+pid+'\')">🗑</button></td>'+
+      '</tr>';
+      if(hasMeses){
+        const meses = p.meses||{};
+        const cells = MESES.map(function(m){
+          const d = meses[m]||{};
+          if(!d.valor && !d.endoso && !d.requerimiento) return '';
+          return '<div class="month-cell"><div class="month-cell-title">'+m+'</div>'+
+            '<div class="month-cell-row"><span class="month-cell-key">Endoso:</span><span>'+escHtml(d.endoso||'-')+'</span></div>'+
+            '<div class="month-cell-row"><span class="month-cell-key">Req:</span><span>'+escHtml(d.requerimiento||'-')+'</span></div>'+
+            '<div class="month-cell-row"><span class="month-cell-key">Valor:</span><span style="color:var(--bp);font-weight:700">'+fmtQ(d.valor)+'</span></div>'+
+            '<div style="margin-top:4px"><span class="badge '+(d.pagado?'b-v':'b-p')+'" style="font-size:9px">'+(d.pagado?'✅ Pagado':'⏳ Pendiente')+'</span></div></div>';
+        }).filter(Boolean).join('');
+        rows += '<tr class="month-detail hidden" id="md-'+pid+'"><td colspan="11"><div class="month-grid">'+cells+'</div></td></tr>';
+      }
+    });
+    tbody.innerHTML = rows;
+  }
+
+  const pag = document.getElementById('pag');
+  pag.innerHTML='';
+  if(pages>1){
+    if(currentPage>1){ const b=document.createElement('button'); b.className='btn btn-o btn-sm'; b.textContent='◀'; b.onclick=function(){currentPage--;renderPolizas();}; pag.appendChild(b); }
+    for(let i=Math.max(1,currentPage-2); i<=Math.min(pages,currentPage+2); i++){
+      const b=document.createElement('button'); b.className='btn '+(i===currentPage?'btn-p':'btn-o')+' btn-sm'; b.textContent=i;
+      const pgnum=i; b.onclick=function(){currentPage=pgnum;renderPolizas();}; pag.appendChild(b);
+    }
+    if(currentPage<pages){ const b=document.createElement('button'); b.className='btn btn-o btn-sm'; b.textContent='▶'; b.onclick=function(){currentPage++;renderPolizas();}; pag.appendChild(b); }
+  }
+  const info = document.getElementById('tInfo');
+  info.textContent = total===0 ? 'Sin resultados' : ('Mostrando '+Math.min(start+1,total)+'–'+Math.min(start+PAGESIZE,total)+' de '+total+' registros');
+}
+
+function renderPagos(){
+  const mes = document.getElementById('pagosMes').value;
+  const estadoF = document.getElementById('pagosEstado').value;
+  const rows = [];
+  polizas.forEach(function(p){
+    const d = (p.meses && p.meses[mes]) || null;
+    if(!d) return;
+    if(!d.valor && !d.endoso && !d.requerimiento) return;
+    if(estadoF==='pendiente' && d.pagado) return;
+    if(estadoF==='pagado' && !d.pagado) return;
+    rows.push({p:p, d:d});
+  });
+  const tbody = document.getElementById('tabla-pagos');
+  const empty = document.getElementById('emptyPagos');
+  if(rows.length===0){ tbody.innerHTML=''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  tbody.innerHTML = rows.map(function(r){
+    return '<tr><td><strong style="color:var(--bs)">'+escHtml(r.p.noPoliza||'-')+'</strong></td><td>'+escHtml(r.p.nombre||'-')+'</td>'+
+      '<td>'+escHtml(r.d.endoso||'-')+'</td><td>'+escHtml(r.d.requerimiento||'-')+'</td><td>'+fmtQ(r.d.valor)+'</td>'+
+      '<td><span class="badge '+(r.d.pagado?'b-v':'b-p')+'">'+(r.d.pagado?'✅ Pagado':'⏳ Pendiente')+'</span></td>'+
+      '<td><button class="btn btn-sm '+(r.d.pagado?'btn-g':'btn-ok')+'" onclick="togglePagoMes(\''+r.p.id+'\',\''+mes+'\')">'+(r.d.pagado?'Marcar pendiente':'Marcar pagado')+'</button></td></tr>';
+  }).join('');
+}
+async function togglePagoMes(id, mes){
+  const p = polizas.find(function(x){return x.id===id;}); if(!p) return;
+  const meses = Object.assign({}, p.meses||{});
+  if(!meses[mes]) meses[mes] = {endoso:'',requerimiento:'',valor:0,pagado:false};
+  meses[mes] = Object.assign({}, meses[mes], {pagado: !meses[mes].pagado});
+  await sb.from('cax_polizas').update({meses:meses}).eq('id',id);
+  await loadPolizas();
+  renderPagos();
+  toast('✅ Actualizado');
+}
+
+function renderCRM(){
+  const search = (document.getElementById('searchCRM').value||'').toLowerCase();
+  const estado = document.getElementById('fCRMEst').value||'';
+  let filtered = polizas.filter(function(p){
+    const ms = !search || (p.nombre||'').toLowerCase().includes(search) || (p.noPoliza||'').toLowerCase().includes(search);
+    const d = getDaysLeft(p);
+    const crmEst = d<0 ? 'vencida' : (d<=7 ? 'urgente' : (d<=30 ? 'soon' : 'activo'));
+    const me = !estado || crmEst===estado;
+    return ms && me;
+  }).sort(function(a,b){return getDaysLeft(a)-getDaysLeft(b);});
+  const grid = document.getElementById('crm-grid');
+  if(filtered.length===0){ grid.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="ei">📇</div><div class="em">Sin resultados</div></div>'; return; }
+  grid.innerHTML = filtered.map(function(p){
+    const d = getDaysLeft(p);
+    const est = getEstado(p);
+    const cardClass = (d<=7 && d>=0) ? 'urg' : ((d<=30 && d>=0) ? 'sn' : '');
+    const primaM = (parseFloat(p.primaAnual)||0)/(parseInt(p.noPago)||12);
+    const dColor = d<=7 ? 'var(--er)' : (d<=30 ? 'var(--wa)' : 'var(--ok)');
+    return '<div class="crm-card '+cardClass+'">'+
+      '<div class="crm-hd"><div class="crm-name">👤 '+escHtml(p.nombre||'Sin nombre')+'</div><div class="crm-pol">'+escHtml(p.noPoliza||'-')+' • '+getBadge(est)+'</div></div>'+
+      '<div class="crm-bd">'+
+        '<div class="crm-row"><span class="crm-key">🔢 Placa</span><span>'+escHtml(p.placa||'-')+'</span></div>'+
+        '<div class="crm-row"><span class="crm-key">📅 Vigencia</span><span style="color:'+dColor+'">'+fmtDate(p.fechaVigencia)+' ('+d+'d)</span></div>'+
+        '<div class="crm-row"><span class="crm-key">💰 Prima/mes</span><span>'+fmtQ(primaM)+'</span></div>'+
+        (p.telefono ? '<div class="crm-row"><span class="crm-key">📞 Tel</span><span>'+escHtml(p.telefono)+'</span></div>' : '')+
+      '</div>'+
+      '<div class="crm-ft"><button class="btn btn-p btn-sm" onclick="editarPoliza(\''+p.id+'\')">✏️ Editar</button></div>'+
+    '</div>';
+  }).join('');
+}
+
+function renderCartera(){
+  const vigentes = polizas.filter(function(p){return getEstado(p)==='VIGENTE' || getEstado(p)==='POR VENCER';});
+  const total = vigentes.length;
+  const primaTotal = vigentes.reduce(function(s,p){return s+(parseFloat(p.primaAnual)||0);},0);
+  const promedio = total>0 ? primaTotal/total : 0;
+  const porVencer = vigentes.filter(function(p){return getEstado(p)==='POR VENCER';}).length;
+  document.getElementById('cartTotal').textContent = total;
+  document.getElementById('cartPrima').textContent = fmtQ(primaTotal);
+  document.getElementById('cartProm').textContent = fmtQ(promedio);
+  document.getElementById('cartPorVencer').textContent = porVencer;
+  const tbody = document.getElementById('tabla-cartera');
+  const empty = document.getElementById('emptyCartera');
+  if(vigentes.length===0){ tbody.innerHTML=''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  const sorted = [...vigentes].sort(function(a,b){return getDaysLeft(a)-getDaysLeft(b);});
+  tbody.innerHTML = sorted.map(function(p){
+    const d = getDaysLeft(p);
+    const color = d<=30 ? 'var(--wa)' : 'var(--ok)';
+    return '<tr><td><strong style="color:var(--bs)">'+escHtml(p.noPoliza||'-')+'</strong></td><td>'+escHtml(p.nombre||'-')+'</td>'+
+      '<td>'+escHtml(p.placa||'-')+'</td><td>'+fmtDate(p.fechaVigencia)+'</td><td>'+fmtQ(p.primaAnual)+'</td>'+
+      '<td style="color:'+color+';font-weight:700">'+(d===9999?'-':(d+' días'))+'</td></tr>';
+  }).join('');
+}
+function copiarCartera(){
+  const el = document.getElementById('page-cartera');
+  navigator.clipboard.writeText(el.innerText).then(function(){toast('📋 Resumen copiado','info');}).catch(function(){toast('No se pudo copiar','err');});
+}
+
+function addImportLog(msg, type){
+  importLogEntries.unshift({msg:msg, type:type||'info', ts:new Date()});
+  renderImportLog();
+}
+function renderImportLog(){
+  const el = document.getElementById('importLog');
+  if(importLogEntries.length===0){ el.innerHTML='<div class="tm tsm" style="text-align:center;padding:16px">Aún no se ha importado nada en esta sesión.</div>'; return; }
+  el.innerHTML = importLogEntries.map(function(e){
+    const cls = e.type==='ok' ? 'a-ok' : (e.type==='warn' ? 'a-warn' : 'a-info');
+    return '<div class="alert '+cls+'">'+escHtml(e.msg)+'</div>';
+  }).join('');
+}
+async function extractPDFText(file){
+  return new Promise(function(resolve, reject){
+    const reader = new FileReader();
+    reader.onload = async function(e){
+      try{
+        const typedArray = new Uint8Array(e.target.result);
+        if(window.pdfjsLib && pdfjsLib.GlobalWorkerOptions){
+          pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+        const pdf = await pdfjsLib.getDocument(typedArray).promise;
+        let fullText = '';
+        for(let i=1;i<=pdf.numPages;i++){
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          fullText += content.items.map(function(item){return item.str;}).join(' ') + '\n';
+        }
+        resolve(fullText);
+      }catch(err){ reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+function parsePDFText(text, filename){
+  const p = { noPoliza:'', noCerti:'', nombre:'', fechaEmision:'', status:'VIGENTE', fechaVigencia:'', fechaRenovacion:'', fechaCancelacion:'', placa:'', cambioPlaca:'', primaAnual:0, renovacionPrima:0, noPago:12, primaNeta:0, pct5:0, divisa:'Q', meses:{}, notas:'' };
+  const polizaM = text.match(/[Pp]óliza\s*[Nn][\u00b0\u00ba]?\s*[:\-]?\s*([A-Z0-9\-\u2013]+)/) || text.match(/N[\u00b0\u00ba]\s*([0-9]{5,15})/);
+  if(polizaM) p.noPoliza = polizaM[1].trim();
+  const titM = text.match(/[Tt]omador\s*[:\-]?\s*([A-Z\u00c1\u00c9\u00cd\u00d3\u00da\u00d1][a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1\s]+)/) || text.match(/[Aa]segurado\s*[:\-]?\s*([A-Z\u00c1\u00c9\u00cd\u00d3\u00da\u00d1][a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1\s]+)/) || text.match(/[Nn]ombre\s*[:\-]?\s*([A-Z\u00c1\u00c9\u00cd\u00d3\u00da\u00d1][a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1\s]+)/);
+  if(titM) p.nombre = titM[1].trim().substring(0,60);
+  const placaM = text.match(/[Pp]laca\s*[:\-]?\s*([A-Z0-9]{3,10})/i);
+  if(placaM) p.placa = placaM[1].toUpperCase();
+  const vigDesdeM = text.match(/[Vv]igencia\s*[Dd]esde\s*[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/);
+  if(vigDesdeM) p.fechaEmision = safeParseDate(vigDesdeM[1]);
+  const vigHastaM = text.match(/[Vv]igencia\s*[Hh]asta\s*[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/) || text.match(/[Vv]encimiento\s*[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/);
+  if(vigHastaM) p.fechaVigencia = safeParseDate(vigHastaM[1]);
+  const renovM = text.match(/[Rr]enovaci[o\u00f3]n\s*[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/);
+  if(renovM) p.fechaRenovacion = safeParseDate(renovM[1]);
+  const primaM = text.match(/[Pp]rima\s*[Tt]otal\s*[:\-]?\s*[\$Q]?\s*([\d\.,]+)/) || text.match(/[Pp]rima\s*[:\-]?\s*[\$Q]?\s*([\d\.,]+)/);
+  if(primaM) p.primaAnual = parseFloat(primaM[1].replace(/\./g,'').replace(',','.'))||0;
+  const cuotasM = text.match(/[Cc]uotas?\s*[:\-]?\s*(\d+)/);
+  if(cuotasM) p.noPago = parseInt(cuotasM[1])||12;
+  if(/d\u00f3lar|USD|\$/i.test(text)) p.divisa='
+</script>
+</body>
+</html>
+; else if(/euro|EUR/i.test(text)) p.divisa='€'; else p.divisa='Q';
+  p.notas = 'Importado desde: '+filename;
+  return (p.noPoliza || p.nombre) ? p : null;
+}
+async function handlePDFUpload(event){
+  const files = event.target.files;
+  if(!files || files.length===0) return;
+  toast('⏳ Procesando PDF(s)...', 'info');
+  const toInsert = [];
+  let imported=0, skipped=0, errors=0;
+  for(const file of Array.from(files)){
+    try{
+      const text = await extractPDFText(file);
+      const p = parsePDFText(text, file.name);
+      if(!p){ addImportLog('⚠️ No se pudo extraer datos de: '+file.name, 'warn'); skipped++; continue; }
+      if(isDuplicate(p) || toInsert.some(function(x){return getDupKey(x)===getDupKey(p);})){ addImportLog('⏭️ Duplicada, omitida: '+file.name, 'warn'); skipped++; continue; }
+      p.sourceFile = file.name;
+      toInsert.push(p);
+      imported++;
+      addImportLog('✅ Extraída: '+file.name+(p.noPoliza?(' → Póliza '+p.noPoliza):''), 'ok');
+    }catch(err){ errors++; addImportLog('❌ Error procesando '+file.name+': '+err.message, 'warn'); }
+  }
+  await insertPolizas(toInsert);
+  await loadPolizas();
+  renderPolizas(); loadDashboard();
+  toast('✅ '+imported+' importadas, '+skipped+' omitidas'+(errors?(', '+errors+' con error'):''), imported>0?'ok':'warn');
+  event.target.value='';
+}
+
+function parseExcelRow(row){
+  const get = function(){
+    const keys = Array.from(arguments);
+    for(const k of keys){
+      for(const rk of Object.keys(row)){
+        if(rk.trim().replace(/\s+/g,' ').toUpperCase() === k.trim().toUpperCase()){
+          const v = row[rk];
+          if(v!==undefined && v!==null && v!=='') return v.toString().trim();
+        }
+      }
+    }
+    return '';
+  };
+  const noPoliza = get('NO DE POLIZA','NO. DE POLIZA','POLIZA','N° POLIZA');
+  const nombre = get('NOMBRE','NOMBRE ASEGURADO','TITULAR');
+  if(!noPoliza && !nombre) return null;
+  const parseNum = function(v){ if(!v) return 0; return parseFloat(v.toString().replace(/[,Q$\s]/g,'').replace(/[^\d.\-]/g,''))||0; };
+  const allKeys = Object.keys(row);
+  const meses = {};
+  const monthPatterns = {
+    'ENE':/^\s*ENE\s*$|^ENERO$/i,'FEB':/^\s*FEB\s*$|^FEBRERO$/i,'MAR':/^\s*MAR\s*$|^MARZO$/i,'ABR':/^\s*ABR\s*$|^ABRIL$/i,
+    'MAY':/^\s*MAY\s*$|^MAYO$/i,'JUN':/^\s*JUN\s*$|^JUNIO$/i,'JUL':/^\s*JUL\s*$|^JULIO$/i,'AGO':/^\s*AGO\s*$|^AGOSTO$/i,
+    'SEP':/^\s*SEP\s*$|^SEPTIEMBRE$/i,'OCT':/^\s*OCT\s*$|^OCTUBRE$/i,'NOV':/^\s*NOV\s*$|^NOVIEMBRE$/i,'DIC':/^\s*DIC\s*$|^DICIEMBRE$/i
+  };
+  const endosoIdxs=[], reqIdxs=[];
+  allKeys.forEach(function(k, idx){ if(/ENDOSO/i.test(k)) endosoIdxs.push(idx); if(/REQUERIMIENTO/i.test(k)) reqIdxs.push(idx); });
+  MESES.forEach(function(m, mi){
+    const monthColIdx = allKeys.findIndex(function(k){ return monthPatterns[m].test(k.trim()); });
+    const valor = monthColIdx>=0 ? parseNum(row[allKeys[monthColIdx]]) : 0;
+    const endoso = endosoIdxs[mi]!==undefined ? (row[allKeys[endosoIdxs[mi]]]||'').toString() : '';
+    const req = reqIdxs[mi]!==undefined ? (row[allKeys[reqIdxs[mi]]]||'').toString() : '';
+    if(valor||endoso||req){ meses[m] = { endoso:endoso, requerimiento:req, valor:valor, pagado:false }; }
+  });
+  return {
+    noPoliza:noPoliza, noCerti:get('NO. CERTI','NO CERTI','CERTI','CERTIFICADO','N° CERTI'), nombre:nombre,
+    fechaEmision:safeParseDate(get('FECHA DE EMISIÓN','FECHA EMISION','EMISION','F. EMISION')),
+    status:(get('STATUS','ESTADO')||'VIGENTE').toUpperCase().trim(),
+    fechaVigencia:safeParseDate(get('FECHA VIGENCIA','VIGENCIA','FECHA DE VIGENCIA')),
+    fechaRenovacion:safeParseDate(get('FECHA RENOVACIÓN','FECHA RENOVACION','RENOVACION','F. RENOVACION')),
+    fechaCancelacion:safeParseDate(get('FECHA CANCELACION','CANCELACION','F. CANCELACION')),
+    placa:get('PLACA','PLACA VEHICULO').toUpperCase(), cambioPlaca:get('CAMBIO DE PLACA','CAMBIO PLACA').toUpperCase(),
+    primaAnual:parseNum(get('PRIMA ANUAL',' PRIMA ANUAL ')), renovacionPrima:parseNum(get('RENOVACION PRIMA',' RENOVACION PRIMA ')),
+    noPago:parseInt(get('No. DE PAGO','NO DE PAGO','N° PAGO'))||12, primaNeta:parseNum(get('PRIMA NETA',' PRIMA NETA ')),
+    pct5:parseNum(get('5.0%','5%')), meses:meses
+  };
+}
+async function handleExcelUpload(event){
+  const files = event.target.files;
+  if(!files || files.length===0) return;
+  toast('⏳ Procesando Excel(s)...', 'info');
+  for(const file of Array.from(files)){
+    await new Promise(function(resolveOuter){
+      const reader = new FileReader();
+      reader.onload = async function(e){
+        try{
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, {type:'array', cellDates:false});
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, {raw:false, defval:''});
+          let imported=0, skipped=0;
+          const toInsert = [];
+          rows.forEach(function(row){
+            const p = parseExcelRow(row);
+            if(!p) return;
+            if(isDuplicate(p) || toInsert.some(function(x){return getDupKey(x)===getDupKey(p);})){ skipped++; return; }
+            p.sourceFile = file.name;
+            toInsert.push(p);
+            imported++;
+          });
+          await insertPolizas(toInsert);
+          addImportLog('✅ '+file.name+': '+imported+' importadas, '+skipped+' duplicadas', 'ok');
+          toast('✅ '+imported+' pólizas importadas de '+file.name, 'ok');
+        }catch(err){ addImportLog('❌ Error en '+file.name+': '+err.message, 'warn'); toast('❌ Error: '+err.message, 'err'); }
+        resolveOuter();
+      };
+      reader.onerror = function(){ resolveOuter(); };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+  await loadPolizas();
+  renderPolizas(); loadDashboard();
+  event.target.value='';
+}
+
+function selCfgColor(el){
+  document.querySelectorAll('#cfgSwatches .swatch').forEach(function(s){s.classList.remove('sel');});
+  el.classList.add('sel');
+  CFG.color = el.dataset.c;
+  document.documentElement.style.setProperty('--bs', CFG.color);
+}
+function loadConfigForm(){
+  document.getElementById('cfgNombre').value=CFG.nombre;
+  document.getElementById('cfgLogo').value=CFG.logo;
+  document.getElementById('cfgMoneda').value=CFG.moneda;
+  document.querySelectorAll('#cfgSwatches .swatch').forEach(function(s){s.classList.toggle('sel', s.dataset.c===CFG.color);});
+}
+async function guardarConfig(){
+  CFG.nombre=document.getElementById('cfgNombre').value.trim()||'Mi Aseguradora';
+  CFG.logo=document.getElementById('cfgLogo').value.trim()||'🚗';
+  CFG.moneda=document.getElementById('cfgMoneda').value.trim()||'Q';
+  await saveCFG();
+  applyConfig();
+  toast('✅ Configuración guardada');
+}
+function resetearDatos(){
+  showConfirm('🗑️ Eliminar TODAS las pólizas','¿Estás seguro? Esto eliminará TODAS tus pólizas registradas. No se puede deshacer.',async function(){
+    await sb.from('cax_polizas').delete().eq('user_id',CURRENT_USER.id);
+    await loadPolizas();
+    toast('🗑️ Todas las pólizas eliminadas','warn');
+    loadDashboard(); renderPolizas();
+  });
+}
+
+function loadApp(){
+  loadDashboard(); renderPolizas(); renderImportLog();
+  const topDate=document.getElementById('topDate');
+  if(topDate) topDate.textContent=new Date().toLocaleDateString('es',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+}
+async function init(){
+  const res=await sb.auth.getSession();
+  const session=res.data.session;
+  if(session&&session.user){ await onAuthReady(session.user); }
+}
+init();
+</script>
+</body>
+</html>
