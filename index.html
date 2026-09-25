@@ -1083,11 +1083,7 @@ function parsePDFText(text, filename){
   if(primaM) p.primaAnual = parseFloat(primaM[1].replace(/\./g,'').replace(',','.'))||0;
   const cuotasM = text.match(/[Cc]uotas?\s*[:\-]?\s*(\d+)/);
   if(cuotasM) p.noPago = parseInt(cuotasM[1])||12;
-  if(/d\u00f3lar|USD|\$/i.test(text)) p.divisa='
-</script>
-</body>
-</html>
-; else if(/euro|EUR/i.test(text)) p.divisa='€'; else p.divisa='Q';
+  if(/d\u00f3lar|USD|\$/i.test(text)) p.divisa='$'; else if(/euro|EUR/i.test(text)) p.divisa='€'; else p.divisa='Q';
   p.notas = 'Importado desde: '+filename;
   return (p.noPoliza || p.nombre) ? p : null;
 }
